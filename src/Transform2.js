@@ -4,10 +4,12 @@
 (function(modula){
 
     function using(module){
-        var mod = modula[module] || typeof 'require' !== 'undefined' ? require(module)[module] : null;
+        var mod = modula[module] || (typeof 'require' !== 'undefined' ? require('./' + module)[module] : null);
+
         if(!mod){
             throw new Error('modula.Transform2 requires modula.'+module);
         }
+        return mod;
     }
 
     var V2   = using('V2');
@@ -294,4 +296,4 @@
         return this;
     };
 
-})(typeof exports === 'undefined' ? ( this['modula'] || this['modula'] = {}) : exports );
+})(typeof exports === 'undefined' ? ( this['modula'] || (this['modula'] = {})) : exports );

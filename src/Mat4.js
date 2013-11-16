@@ -3,7 +3,7 @@
 
 (function(modula){
 
-    var V3 = modula.V3 || (typeof 'require' !== 'undefined' ? require('V3').V3 : null);
+    var V3 = modula.V3 || (typeof 'require' !== 'undefined' ? require('./V3').V3 : null);
 
     if(!V3 ){
         throw new Error('modula.Mat4 requires modula.V3');

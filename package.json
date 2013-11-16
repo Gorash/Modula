@@ -1,0 +1,13 @@
+{
+  "name": "Modula",
+  "version": "2.0",
+  "description": "Modula",
+  "main": "modula.js",
+  "keywords": [
+    "pathfinding"
+  ],
+  "author": {
+    "name": "Fréderic",
+    "email": " "
+  }
+}

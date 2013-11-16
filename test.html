@@ -2,16 +2,93 @@
 <html>
     <head>
         <title>Modula Tests</title>
-        <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
-        <script src='src/V2.js'></script>
-        <script src='src/V3.js'></script>
-        <script src='src/Mat3.js'></script>
-        <script src='src/Mat4.js'></script>
-        <script src='src/Quat.js'></script>
-        <script src='src/Grid2.js'></script>
+        <script src='./modula.js'></script>
+        <script src="/static/lib/jQuery/jquery-1.8.3.js"></script>
+        <script src='./src/$Grid2.js'></script>
+        <style>
+        .solid {
+            background: black;
+        }
+        </style>
     </head>
     <body>
-        <div class='grid'>
-        </div>
+        <p>Left click: path animation</p>
+        <p>Middle click: add/remove wall</p>
+        <div id='grid'></div>
+        <script>
+            var $grid = new modula.$Grid2('#grid',32,32,16);
+            var grid = $grid.grid;
+            var x = 0, y = 0;
+            var move = [];
+
+
+            for (var k in grid.cells) {
+                if (grid.cells[k].data("x") && grid.cells[k].data("y") && Math.random() > 0.7) {
+                    grid.cells[k].addClass("solid");
+                }
+            }
+
+            // pathfinding animation
+
+            setInterval(function () {
+              if (move.length) {
+                var cell = move.shift();
+                grid.getCellUnsafe(x, y).css("background-color", "");
+                grid.getCellUnsafe(cell.x, cell.y).css("background-color", "yellow");
+                x = cell.x;
+                y = cell.y;
+              }
+            }, 70);
+
+            var pos = $("#grid").position();
+            $("#grid").click(function (ev) {
+              if (ev.button !== 0) return;
+              var x1 = parseInt((ev.clientX - pos.left)/16);
+              var y1 = parseInt((ev.clientY - pos.top)/16);
+
+              for (var k in grid.cells) {
+                  if ((grid.cells[k].data("x") != x || grid.cells[k].data("y") != y) &&
+                      !grid.cells[k].hasClass("solid"))
+                    grid.cells[k].css("background-color", "");
+              }
+              move = grid.path(x, y, x1, y1, {'nodiags': false}, function () {});
+            });
+
+            /*
+            $(function(){
+                var width  = 250;
+                var height = 250;
+                var map = JSON.parse(localStorage['map'] || '[]');
+                if(map.length !== width * height){
+                    map = [];
+                    for(var i = 0; i < width * height; i++){
+                        map.push(Math.random() < 0.37 ? 1 : 0);
+                    }
+                    map[0] = 0;
+                    map[width * height -1] = 0;
+                    localStorage['map'] = JSON.stringify(map);
+                }
+                window.grid = new modula.Grid2(width,height,{cells:map});
+
+                window.test_perfs = function(iter){
+                    var start = (new Date()).getTime();
+                    var iter = iter || 1;
+                    var i = iter;
+                    while(i--){
+                        console.log(grid.path(0,0,width-1,height-1).length);
+                    }
+                    console.log( ((new Date()).getTime() - start)/iter, 'ms' );
+                };
+                test_perfs();
+                
+                // ray intersect box
+
+                console.log(rayIntersectBox(-2,0.99, 1,0, -1,-1,2,2));
+                console.log(rayIntersectBox(-2,1, 1,0, -1,-1,2,2));
+                console.log(rayIntersectBox(-2,1.01, 1,0, -1,-1,2,2));
+
+            });*/
+
+        </script>
     </body>
 </html>

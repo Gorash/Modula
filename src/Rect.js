@@ -3,7 +3,7 @@
 
 (function(modula){
 
-    var V2 = modula.V2 || typeof 'require' !== 'undefined' ? require('V2').V2 : null;
+    var V2 = modula.V2 || (typeof 'require' !== 'undefined' ? require('./V2').V2 : null);
 
     if(!V2 ){
         throw new Error('modula.Rect requires modula.V2');
@@ -32,7 +32,7 @@
 
     modula.Rect = Rect;
 
-    Rect.prototype = new Bound();
+    //Rect.prototype = new Bound();
     Rect.prototype.min = function(){  return new V2(this.x, this.y); };
     Rect.prototype.minX = function(){ return this.x; };
     Rect.prototype.minY = function(){ return this.y; };
@@ -153,4 +153,4 @@
         return "["+this.cx+","+this.cy+"|"+this.sx+","+this.sy+"]";
     };
 
-})(typeof exports === 'undefined' ? ( this['modula'] || this['modula'] = {}) : exports );
+})(typeof exports === 'undefined' ? ( this['modula'] || (this['modula'] = {})) : exports );

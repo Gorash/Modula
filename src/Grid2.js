@@ -585,7 +585,7 @@
             for(var i = 0, len = neighbors.length; i < len; i++){
                 var neighbor = neighbors[i];
                 
-                if(this.isSolid(neighbor.x, neighbor.y) || closedset.contains(neighbor)){
+                if(is_solid(neighbor.x, neighbor.y) || closedset.contains(neighbor)){
                     continue;
                 }
 
@@ -928,100 +928,5 @@
         }
     };
 
-    modula.$Grid2 = function $Grid2(selector,x,y,size){
-        var  self = this;
-        this.grid = new modula.Grid2(x,y,{
-            cellSizeX:size,
-            cellSizeY:size,
-            isSolid: function(x,y){
-                var cell = this.getCell(x,y);
-                return cell && cell.hasClass('solid');
-            }
-        });
-        this.grid.map(function(x,y){
-            var $cell = $("<div class='cell'></div>");
-            $cell.css({
-                'float':  'left',
-                'width':  size+'px',
-                'height': size+'px',
-                'text-align':'center',
-                'font-size': size/4+'px',
-                'line-height': size+'px',
-                'color':'gray',
-                'border': 'solid 1px gray',
-                'box-sizing': 'border-box',
-            });
-            $cell.data('grid',self);
-            $cell.data('x',x);
-            $cell.data('y',y);
-            $cell.appendTo(selector);
-            $cell.click(function(){
-                if( self.grid.isSolid(x,y) ){
-                    self.setVoid(x,y);
-                }else{
-                    self.setSolid(x,y);
-                }
-            });
-            $cell.setVoid = function(){ self.setVoid(x,y); };
-            $cell.setSolid = function(){ self.setSolid(x,y); };
-
-            return $cell;
-        });
-        $(selector).css({
-            'overflow':'hidden',
-            'width': this.grid.totalSizeX + 'px',
-            'height': this.grid.totalSizeY + 'py',
-        });
-        this.setSolid = function(x,y){
-            this.grid.getCell(x,y).addClass('solid').css({'background':'black'});
-        };
-        this.setVoid = function(x,y){
-            this.grid.getCell(x,y).removeClass('solid').css({'background':'white'});
-        };
-    };
 
 })(typeof exports === 'undefined' ? ( this['modula'] || (this['modula'] = {})) : exports );
-
-$(function(){
-    window.$grid = new modula.$Grid2('.grid',32,32,10);
-    window.grid = $grid.grid;
-});
-
-/*
-$(function(){
-    var width  = 250;
-    var height = 250;
-    var map = JSON.parse(localStorage['map'] || '[]');
-    if(map.length !== width * height){
-        map = [];
-        for(var i = 0; i < width * height; i++){
-            map.push(Math.random() < 0.37 ? 1 : 0);
-        }
-        map[0] = 0;
-        map[width * height -1] = 0;
-        localStorage['map'] = JSON.stringify(map);
-    }
-    window.grid = new modula.Grid2(width,height,{cells:map});
-
-    window.test_perfs = function(iter){
-        var start = (new Date()).getTime();
-        var iter = iter || 1;
-        var i = iter;
-        while(i--){
-            console.log(grid.path(0,0,width-1,height-1).length);
-        }
-        console.log( ((new Date()).getTime() - start)/iter, 'ms' );
-    };
-    test_perfs();
-    
-    // ray intersect box
-
-    console.log(rayIntersectBox(-2,0.99, 1,0, -1,-1,2,2));
-    console.log(rayIntersectBox(-2,1, 1,0, -1,-1,2,2));
-    console.log(rayIntersectBox(-2,1.01, 1,0, -1,-1,2,2));
-
-});*/
-
-
-
-
