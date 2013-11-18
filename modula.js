@@ -16,14 +16,12 @@ if (typeof exports === 'undefined') {
         document.write('<script type="text/javascript" src="' + load[i] + '"></script>');
     }
 } else {
-    module.exports = {
-        'V2': require('./src/V2').V2,
-        'V3': require('./src/V3').V3,
-        'Rect': require('./src/V2').Rect,
-        'Math3': require('./src/Mat3').Math3,
-        'Transform2': require('./src/Transform2').Transform2,
-        'Math4': require('./src/Mat4').Math4,
-        'Quat': require('./src/Quat').Quat,
-        'Grid2': require('./src/Grid2').Grid2
-    };
+    exports.V2 = require('./src/V2').V2;
+    exports.V3 = require('./src/V3').V3;
+    exports.Rect = require('./src/Rect').Rect;
+    exports.Mat3 = require('./src/Mat3').Mat3;
+    exports.Transform2 = require('./src/Transform2').Transform2;
+    exports.Mat4 = require('./src/Mat4').Mat4;
+    exports.Quat = require('./src/Quat').Quat;
+    exports.Grid2 = require('./src/Grid2').Grid2;
 }
