@@ -1,18 +1,23 @@
 
 (function(modula){
 
-    modula.$Grid2 = function $Grid2(selector,x,y,size){
+    modula.$Grid2 = function $Grid2(selector,x,y,size,options){
         var  self = this;
-        this.grid = new modula.Grid2(x,y,{
-            cellSizeX:size,
-            cellSizeY:size,
-            isSolid: function(x,y){
-                var cell = this.getCell(x,y);
-                return cell && cell.hasClass('solid');
-            }
-        });
-        this.grid.map(function(x,y){
+
+        options = options || {};
+        options.cellSizeX = size;
+        options.cellSizeY = size;
+        options.isSolid = function(x,y){
+            var cell = this.getCell(x,y);
+            return cell && cell.data("solid") || false;
+        };
+
+        this.grid = new modula.Grid2(x,y,options);
+        this.grid.map(function(x,y,cell){
             var $cell = $("<div class='cell'></div>");
+            if (!cell) {
+                $cell.addClass('solid').data("solid", true);
+            }
             $cell.css({
                 'float':  'left',
                 'width':  size+'px',
@@ -28,16 +33,9 @@
             $cell.data('x',x);
             $cell.data('y',y);
             $cell.appendTo(selector);
-            $cell.click(function (ev){
-                if (ev.button !== 1) return;
-                if( self.grid.isSolid(x,y) ){
-                    self.setVoid(x,y);
-                }else{
-                    self.setSolid(x,y);
-                }
-            });
             $cell.setVoid = function(){ self.setVoid(x,y); };
             $cell.setSolid = function(){ self.setSolid(x,y); };
+            if (options.iterator) { options.iterator.call(self,x,y,$cell); }
 
             return $cell;
         });
@@ -47,10 +45,10 @@
             'height': this.grid.totalSizeY + 'py',
         });
         this.setSolid = function(x,y){
-            this.grid.getCell(x,y).addClass('solid');
+            this.grid.getCell(x,y).addClass('solid').data("solid", true);
         };
         this.setVoid = function(x,y){
-            this.grid.getCell(x,y).removeClass('solid');
+            this.grid.getCell(x,y).removeClass('solid').data("solid", false);
         };
     };
 
