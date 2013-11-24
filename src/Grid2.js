@@ -127,7 +127,7 @@
             dist: this.dist,
             neighbors: this.neighbors,
         });
-    }
+    };
 
     // sets every cell in the grid to 'cell'
     proto.fill = function(cell){
@@ -351,6 +351,28 @@
         return n;
     };
 
+    proto._crossCorner = function(current, neighbor, is_solid){
+        var directionX = (neighbor.x - current.x);
+        var directionY = (neighbor.y - current.y);
+        if (directionX === -1) {
+            if (directionY === -1) {
+                return  is_solid(current.x-1, current.y) ||
+                        is_solid(current.x, current.y-1);
+            } else if (directionY === 1) {
+                return  is_solid(current.x-1, current.y-1) ||
+                        is_solid(current.x, current.y+1);
+            }
+        } else if (directionX === 1) {
+            if (directionY === -1) {
+                return  is_solid(current.x+1, current.y) ||
+                        is_solid(current.x, current.y-1);
+            } else if (directionY === 1) {
+                return  is_solid(current.x+1, current.y-1) ||
+                        is_solid(current.x, current.y+1);
+            }
+        }
+        return false;
+    };
 
     /* --- Set Map and Heap for A* --- */
 
@@ -439,7 +461,7 @@
                     continue;
                 }
                 var end = this.content.pop();
-                if( i === length -1){
+                if( i === len -1){
                     return end;
                 }else{
                     this.content[i] = end;
@@ -492,7 +514,6 @@
                 n = swap;
             }
         },
-
     };
     
 
@@ -543,7 +564,7 @@
         var result = [];
 
         var start = {x:startX, y:startY};
-        var end   = {x:endX,   y:endY}; 
+        var end   = {x:endX,   y:endY};
         var _dist = opts.dist || this.dist;
         var dist = function(start,end){
                 return _dist.call(self, start.x,start.y, end.x,end.y);
@@ -553,16 +574,33 @@
                 return _heuristic.call(self,start.x, start.y, end.x, end.y);
             };
 
-        var get_neighbors = opts.neighbors 
+        var get_neighbors = opts.neighbors
                           ? function(x,y){ return opts.neighbors.call(self,x,y); }
-                          : ( opts.nodiags 
-                            ? function(x,y){ return self._neighborsNoDiags(x,y);} 
+                          : ( opts.nodiags
+                            ? function(x,y){ return self._neighborsNoDiags(x,y);}
                             : function(x,y){ return self._neighbors(x,y); }
                             );
         
+        var solid_cache = []; // use cache to improve performance
         var is_solid = opts.isSolid
-                     ? function(x,y) { return opts.isSolid.call(self,x,y); }
-                     : function(x,y) { return self.isSolid(x,y); };
+                     ? function(x,y) {
+                        var index = y*self.sizeX+x;
+                        return solid_cache[index] !== undefined
+                            ? solid_cache[index]
+                            : solid_cache[index] = opts.isSolid.call(self,x,y);
+                        }
+                     : function(x,y) {
+                        var index = y*self.sizeX+x;
+                        return solid_cache[index] !== undefined
+                            ? solid_cache[index]
+                            : solid_cache[index] = self.isSolid(x,y);
+                        };
+
+        var crossCorner = opts.crossCorner
+                        ? function (current, neighbor){ return opts.crossCorner.call(self,current,neighbor,is_solid); }
+                        : (opts.noCrossCorner
+                          ? function (current, neighbor) { return self._crossCorner(current,neighbor,is_solid); }
+                          : function (current, neighbor) { return false; });
 
         var closedset = new PointSet(this);
         var openset   = new PointHeap(this);
@@ -572,20 +610,22 @@
             g_score.set(start,0);
 
         while( openset.size() > 0 ){
-            var current = openset.popClosest().point; 
+            var current = openset.popClosest().point;
 
             if( current.x === endX && current.y === endY){
                 result = reconstruct_path(came_from, end);
                 break;
             }
 
-            closedset.add(current); 
+            closedset.add(current);
 
-            var neighbors = get_neighbors(current.x, current.y); //get_neighbors.call(this,current.x,current.y);
+            var neighbors = get_neighbors(current.x, current.y);
             for(var i = 0, len = neighbors.length; i < len; i++){
                 var neighbor = neighbors[i];
                 
-                if(is_solid(neighbor.x, neighbor.y) || closedset.contains(neighbor)){
+                if( is_solid(neighbor.x, neighbor.y) ||
+                    closedset.contains(neighbor) ||
+                    crossCorner(current, neighbor)) {
                     continue;
                 }
 
@@ -662,7 +702,7 @@
 
     proto.rayIntersectCell = function(startX,startY,dirX,dirY,cellX,cellY){
         return rayIntersectBox(startX,startY,dirX,dirY,cellX*this.cellSizeX,cellY*this.cellSizeY,this.cellSizeX,this.cellSizeY);
-    }
+    };
 
     // iterates over the grid's cells containing the ray starting at
     // pixel (startX,starty) in the direction (dirX,dirY) in the order
@@ -735,7 +775,6 @@
             currX = nextX;
             currY = nextY;
         }while(this.cellInside(X,Y));
-
     };
 
     // returns the shortest translation vector that can translate
