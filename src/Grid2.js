@@ -104,7 +104,7 @@
     // This is the default distance as it generates the best pathfinding results
     proto.distComposite = function(x1,y1,x2,y2){
         var dx = Math.abs(x2 - x1) * this.cellSizeX;
-        var dy = Math.abs(y2 - y1) * this.cellSizeY; 
+        var dy = Math.abs(y2 - y1) * this.cellSizeY;
         var rect = Math.abs(dx-dy);
         var diag = Math.min(dx,dy);
         return rect + 1.5 * diag;
@@ -359,7 +359,7 @@
                 return  is_solid(current.x-1, current.y) ||
                         is_solid(current.x, current.y-1);
             } else if (directionY === 1) {
-                return  is_solid(current.x-1, current.y-1) ||
+                return  is_solid(current.x-1, current.y) ||
                         is_solid(current.x, current.y+1);
             }
         } else if (directionX === 1) {
@@ -367,7 +367,7 @@
                 return  is_solid(current.x+1, current.y) ||
                         is_solid(current.x, current.y-1);
             } else if (directionY === 1) {
-                return  is_solid(current.x+1, current.y-1) ||
+                return  is_solid(current.x+1, current.y) ||
                         is_solid(current.x, current.y+1);
             }
         }
