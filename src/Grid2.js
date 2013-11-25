@@ -92,8 +92,8 @@
     
     // returns the eclidian distance between two cells (x1,y1), (x2,y2)
     proto.distEuclidian = function(x1,y1,x2,y2){
-        var dx = (x2 - x1) * this.cellSizeX;  
-        var dy = (y2 - y1) * this.cellSizeY; 
+        var dx = (x2 - x1) * this.cellSizeX;
+        var dy = (y2 - y1) * this.cellSizeY;
         return Math.sqrt(dx*dx + dy*dy);
     };
     
@@ -351,27 +351,27 @@
         return n;
     };
 
-    proto._crossCorner = function(current, neighbor, is_solid){
+    proto._softCorner = function(current, neighbor, is_soft){
         var directionX = (neighbor.x - current.x);
         var directionY = (neighbor.y - current.y);
         if (directionX === -1) {
             if (directionY === -1) {
-                return  is_solid(current.x-1, current.y) ||
-                        is_solid(current.x, current.y-1);
+                return  is_soft(current.x-1, current.y) &&
+                        is_soft(current.x, current.y-1);
             } else if (directionY === 1) {
-                return  is_solid(current.x-1, current.y) ||
-                        is_solid(current.x, current.y+1);
+                return  is_soft(current.x-1, current.y) &&
+                        is_soft(current.x, current.y+1);
             }
         } else if (directionX === 1) {
             if (directionY === -1) {
-                return  is_solid(current.x+1, current.y) ||
-                        is_solid(current.x, current.y-1);
+                return  is_soft(current.x+1, current.y) &&
+                        is_soft(current.x, current.y-1);
             } else if (directionY === 1) {
-                return  is_solid(current.x+1, current.y) ||
-                        is_solid(current.x, current.y+1);
+                return  is_soft(current.x+1, current.y) &&
+                        is_soft(current.x, current.y+1);
             }
         }
-        return false;
+        return true;
     };
 
     /* --- Set Map and Heap for A* --- */
@@ -409,15 +409,22 @@
         this.grid = grid;
         this.sizeX = grid.sizeX;
         this.map = [];
-        this.map[this.grid.sizeX * this.grid.sizeY] = null;
+        this.map[this.grid.sizeX * this.grid.sizeY] = undefined;
     }
     
     PointMap.prototype = {
         set: function set(point,value){
-            this.map[ point.x + point.y * this.sizeX] = value;
+            return this.map[ point.x + point.y * this.sizeX] = value;
         },
         get: function get(point){
             return this.map[ point.x + point.y * this.sizeX];
+        },
+        each: function each(iterator) {
+            for(var i = 0, len = this.map.length; i < len; i++){
+                if (this.map[i] !== undefined) {
+                    iterator.call(this, {x:i%this.sizeX, y:Math.floor(i/this.sizeX)}, this.map[i], i);
+                }
+            }
         }
     };
 
@@ -552,6 +559,19 @@
     //   isSolid: a function(x,y) -> bool that returns true when the cell (x,y)
     //            should be excluded from the path. By default, the grid's isSolid
     //            method is used.
+    //
+    //   softCorner: a function(x,y) -> bool that returns true when the path can
+    //            pass through the corner of the cell (x,y). By default, is isSolid.
+    //
+    //   noCrossCorner: if true or softCorner is setted, use softCorner method
+    //
+    //   precision: an int to defined the precision of the path end point.
+    //            The path selected is Minimum of (dist of position * precision +
+    //            path length * (100 - precision).
+    //            If the precision is greater than 100, path method return an
+    //            empty array if no path is possible to reach the end point.
+    //            By default: 100
+    //
 
     proto.path = function path( startX, startY, endX, endY, opts, iterator){
         var self = this;
@@ -574,38 +594,48 @@
                 return _heuristic.call(self,start.x, start.y, end.x, end.y);
             };
 
+        var precision = opts.precision === undefined || isNaN(+opts.precision) ? 100 : +opts.precision;
+        if (precision < 0) precision = 0;
+
         var get_neighbors = opts.neighbors
-                          ? function(x,y){ return opts.neighbors.call(self,x,y); }
-                          : ( opts.nodiags
-                            ? function(x,y){ return self._neighborsNoDiags(x,y);}
-                            : function(x,y){ return self._neighbors(x,y); }
-                            );
+                    ? function(x,y){ return opts.neighbors.call(self,x,y); }
+                    : ( opts.nodiags
+                        ? function(x,y){ return self._neighborsNoDiags(x,y);}
+                        : function(x,y){ return self._neighbors(x,y); });
         
         var solid_cache = []; // use cache to improve performance
         var is_solid = opts.isSolid
-                     ? function(x,y) {
+                    ? function(x,y) {
                         var index = y*self.sizeX+x;
                         return solid_cache[index] !== undefined
                             ? solid_cache[index]
                             : solid_cache[index] = opts.isSolid.call(self,x,y);
                         }
-                     : function(x,y) {
+                    : function(x,y) {
                         var index = y*self.sizeX+x;
                         return solid_cache[index] !== undefined
                             ? solid_cache[index]
                             : solid_cache[index] = self.isSolid(x,y);
                         };
 
-        var crossCorner = opts.crossCorner
-                        ? function (current, neighbor){ return opts.crossCorner.call(self,current,neighbor,is_solid); }
-                        : (opts.noCrossCorner
-                          ? function (current, neighbor) { return self._crossCorner(current,neighbor,is_solid); }
-                          : function (current, neighbor) { return false; });
+        var soft_corner_cache = []; // use cache to improve performance
+        var is_soft = opts.softCorner
+                    ? function (x,y) {
+                        var index = y*self.sizeX+x;
+                        return soft_corner_cache[index] !== undefined
+                            ? soft_corner_cache[index]
+                            : soft_corner_cache[index] = opts.softCorner.call(self,x,y);
+                        }
+                    : is_solid;
+        var soft_corner = opts.softCorner || opts.noCrossCorner
+                    ? function (current, neighbor) { return self._softCorner(current,neighbor,is_soft); }
+                    : function (current, neighbor) { return true; };
 
         var closedset = new PointSet(this);
         var openset   = new PointHeap(this);
             openset.add({x:startX, y:startY},0 + heuristic(start,end));
         var came_from = new PointMap(this);
+        var d_score = new PointMap(this);
         var g_score   = new PointMap(this);
             g_score.set(start,0);
 
@@ -613,7 +643,6 @@
             var current = openset.popClosest().point;
 
             if( current.x === endX && current.y === endY){
-                result = reconstruct_path(came_from, end);
                 break;
             }
 
@@ -623,9 +652,9 @@
             for(var i = 0, len = neighbors.length; i < len; i++){
                 var neighbor = neighbors[i];
                 
-                if( is_solid(neighbor.x, neighbor.y) ||
+                if( !is_solid(neighbor.x, neighbor.y) ||
                     closedset.contains(neighbor) ||
-                    crossCorner(current, neighbor)) {
+                    !soft_corner(current, neighbor)) {
                     continue;
                 }
 
@@ -635,12 +664,35 @@
                     came_from.set(neighbor, current);
                     g_score.set(neighbor, tentative_g_score);
                     openset.add(neighbor, tentative_g_score + heuristic(neighbor, end));
+                    if (precision <= 100) {
+                        d_score.set(neighbor, dist(end,neighbor));
+                    }
                 }
             }
         }
+
+        if (precision > 100) {
+            result = reconstruct_path(came_from, end);
+        } else {
+            var _p = precision / (100-precision),
+                min_dist, nearest;
+            d_score.each(function (point, dist, i) {
+                var temp = dist*_p + g_score.map[i];
+                if (!isNaN(temp) && (min_dist === undefined || temp < min_dist)) {
+                    min_dist = temp;
+                    nearest = point;
+                }
+            });
+            if (nearest !== undefined) {
+                if (min_dist < dist(end,start)*_p) {
+                    result = reconstruct_path(came_from, nearest);
+                }
+            }
+        }
+
         if(iterator){
             for(var i = 0, len = result.length; i < len; i++){
-                var r = result[i]
+                var r = result[i];
                     r.cell = this.getCellUnsafe(r.x,r.y);
                 iterator.call(this,r.x,r.y,r.cell,i,len);
             }
