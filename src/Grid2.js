@@ -300,41 +300,65 @@
         return cells;
     };
 
-    proto._neighbors = function _neighbors(x,y){
+    // returns the list of neighboring cells {x,y,cell} of cell (x,y)
+    proto.neighbors = function(x,y,isSolid){
         var n = [];
-        if( x < -1 || x > this.sizeX || y < -1 || y > this.sizeY){
+        var minX = this.sizeX-1;
+        var minY = this.sizeY-1;
+        if( x < -1 || x > minX || y < -1 || y > minY){
             return [];
-        }else{
-            var minX = Math.max(0,x-1);
-            var maxX = Math.min(this.sizeX-1,x+1);
-            var minY = Math.max(0,y-1);
-            var maxY = Math.min(this.sizeY-1,y+1);
-            for(var nx = minX; nx <= maxX; nx++){
-                for(var ny = minY; ny <= maxY; ny++){
-                    if(nx != x || ny !== y){
-                        n.push({x:nx,y:ny});
-                    }
+        } else {
+            if (y>0 && isSolid(x,y-1)>0){
+                n.push({x:x,y:y-1});
+            }
+            if (y<minY && isSolid(x,y+1)>0){
+                n.push({x:x,y:y+1});
+            }
+            if (x>0) {
+                if (isSolid(x-1,y)>0){
+                    n.push({x:x-1,y:y});
+                }
+                if (y>0 && isSolid(x-1,y-1)>0){
+                    n.push({x:x-1,y:y-1});
+                }
+                if (y<minY && isSolid(x-1,y+1)>0){
+                    n.push({x:x-1,y:y+1});
+                }
+            }
+            if (x<minX) {
+                if(isSolid(x+1,y)>0){
+                    n.push({x:x+1,y:y});
+                }
+                if (y>0 && isSolid(x+1,y-1)>0){
+                    n.push({x:x+1,y:y-1});
+                }
+                if (y<minY && isSolid(x+1,y+1)>0){
+                    n.push({x:x+1,y:y+1});
                 }
             }
             return n;
         }
     };
 
-    proto._neighborsNoDiags = function(x,y){
+    // returns the list of neighboring cells {x,y,cell} of cell (x,y)
+    // diagonals neighbors are omitted
+    proto.neighborsNoDiags = function(x,y,isSolid){
         var n = [];
-        if(y >= 0 && y < this.sizeY){
-            if(x-1 >= 0){
+        var minX = this.sizeX-1;
+        var minY = this.sizeY-1;
+        if(y >= 0 && y < minY){
+            if(x >= 1 && isSolid(x-1,y)>0){
                 n.push({x:x-1, y:y});
             }
-            if(x+1 < this.sizeX){
+            if(x+1 < minX && isSolid(x+1,y)>0){
                 n.push({x:x+1, y:y});
             }
         }
-        if( x >= 0 && x < this.sizeX ){
-            if(y-1 >= 0){
+        if( x >= 0 && x < minX ){
+            if(y >= 1 && isSolid(x,y-1)>0){
                 n.push({x:x, y:y-1});
             }
-            if(y+1 < this.sizeY){
+            if(y+1 < minY && isSolid(x,y+1)>0){
                 n.push({x:x, y:y+1});
             }
         }
@@ -342,36 +366,36 @@
     };
 
     // returns the list of neighboring cells {x,y,cell} of cell (x,y)
-    // if nodiags is true, diagonals neighbors are omitted
-    proto.neighbors = function neighbors(x,y,nodiags){
-        var n = nodiags ? this._neighborsNoDiags(x,y) : this._neighbors(x,y);
-        for(var i = 0, len = n.length; i < len; i++){
-            n.cell = this.getCellUnsafe(x,y);
-        }
-        return n;
-    };
-
-    proto._softCorner = function(current, neighbor, is_soft){
-        var directionX = (neighbor.x - current.x);
-        var directionY = (neighbor.y - current.y);
-        if (directionX === -1) {
-            if (directionY === -1) {
-                return  is_soft(current.x-1, current.y) &&
-                        is_soft(current.x, current.y-1);
-            } else if (directionY === 1) {
-                return  is_soft(current.x-1, current.y) &&
-                        is_soft(current.x, current.y+1);
+    // diagonals neighbors are omitted if the cell cross a corner
+    proto.neighborsNoCrossCorner = function(x,y,isSolid){
+        var n = [];
+        var minX = this.sizeX-1;
+        var minY = this.sizeY-1;
+        if( x < -1 || x > minX || y < -1 || y > minY){
+            return [];
+        } else {
+            if (y>0 && isSolid(x,y-1))
+                n.push({x:x,y:y-1});
+            if (y<minY && isSolid(x,y+1))
+                n.push({x:x,y:y+1});
+            if (x>0) {
+                if (isSolid(x-1,y))
+                    n.push({x:x-1,y:y});
+                if (y>0 && isSolid(x-1,y-1) && isSolid(x-1, y) && isSolid(x, y-1))
+                    n.push({x:x-1,y:y-1});
+                if (y<minY && isSolid(x-1,y+1) && isSolid(x-1, y) && isSolid(x, y+1))
+                    n.push({x:x-1,y:y+1});
             }
-        } else if (directionX === 1) {
-            if (directionY === -1) {
-                return  is_soft(current.x+1, current.y) &&
-                        is_soft(current.x, current.y-1);
-            } else if (directionY === 1) {
-                return  is_soft(current.x+1, current.y) &&
-                        is_soft(current.x, current.y+1);
+            if (x<minX) {
+                if(isSolid(x+1,y))
+                    n.push({x:x+1,y:y});
+                if (y>0 && isSolid(x+1,y-1) && isSolid(x+1, y) && isSolid(x, y-1))
+                    n.push({x:x+1,y:y-1});
+                if (y<minY && isSolid(x+1,y+1) && isSolid(x+1, y) && isSolid(x, y+1))
+                    n.push({x:x+1,y:y+1});
             }
+            return n;
         }
-        return true;
     };
 
     /* --- Set Map and Heap for A* --- */
@@ -594,43 +618,32 @@
                 return _heuristic.call(self,start.x, start.y, end.x, end.y);
             };
 
-        var precision = opts.precision === undefined || isNaN(+opts.precision) ? 100 : +opts.precision;
-        if (precision < 0) precision = 0;
+        var precision = typeof opts.precision === "undefined" ? 2 : opts.precision;
 
-        var get_neighbors = opts.neighbors
-                    ? function(x,y){ return opts.neighbors.call(self,x,y); }
-                    : ( opts.nodiags
-                        ? function(x,y){ return self._neighborsNoDiags(x,y);}
-                        : function(x,y){ return self._neighbors(x,y); });
-        
-        var solid_cache = []; // use cache to improve performance
+        this._cache_isSolid = []; // use cache to improve performance
+
         var is_solid = opts.isSolid
                     ? function(x,y) {
                         var index = y*self.sizeX+x;
-                        return solid_cache[index] !== undefined
-                            ? solid_cache[index]
-                            : solid_cache[index] = opts.isSolid.call(self,x,y);
+                        return self._cache_isSolid[index] !== undefined
+                            ? self._cache_isSolid[index]
+                            : self._cache_isSolid[index] = opts.isSolid.call(self,x,y);
                         }
                     : function(x,y) {
                         var index = y*self.sizeX+x;
-                        return solid_cache[index] !== undefined
-                            ? solid_cache[index]
-                            : solid_cache[index] = self.isSolid(x,y);
+                        return self._cache_isSolid[index] !== undefined
+                            ? self._cache_isSolid[index]
+                            : self._cache_isSolid[index] = self.isSolid(x,y);
                         };
 
-        var soft_corner_cache = []; // use cache to improve performance
-        var is_soft = opts.softCorner
-                    ? function (x,y) {
-                        var index = y*self.sizeX+x;
-                        return soft_corner_cache[index] !== undefined
-                            ? soft_corner_cache[index]
-                            : soft_corner_cache[index] = opts.softCorner.call(self,x,y);
-                        }
-                    : is_solid;
-        var soft_corner = opts.softCorner || opts.noCrossCorner
-                    ? function (current, neighbor) { return self._softCorner(current,neighbor,is_soft); }
-                    : function (current, neighbor) { return true; };
-
+        var get_neighbors = opts.neighbors
+                    ? function(x,y){ return opts.neighbors.call(self,x,y,is_solid); }
+                    : ( opts.nodiags
+                        ? function(x,y){ return self.neighborsNoDiags(x,y,is_solid);}
+                        : ( opts.noCrossCorner
+                            ? function(x,y){ return self.neighborsNoCrossCorner(x,y,is_solid);}
+                            : function(x,y){ return self.neighbors(x,y,is_solid); }));
+        
         var closedset = new PointSet(this);
         var openset   = new PointHeap(this);
             openset.add({x:startX, y:startY},0 + heuristic(start,end));
@@ -643,6 +656,9 @@
             var current = openset.popClosest().point;
 
             if( current.x === endX && current.y === endY){
+                if (precision > 1) {
+                    result = reconstruct_path(came_from, end);
+                }
                 break;
             }
 
@@ -652,9 +668,7 @@
             for(var i = 0, len = neighbors.length; i < len; i++){
                 var neighbor = neighbors[i];
                 
-                if( !is_solid(neighbor.x, neighbor.y) ||
-                    closedset.contains(neighbor) ||
-                    !soft_corner(current, neighbor)) {
+                if(closedset.contains(neighbor)) {
                     continue;
                 }
 
@@ -664,27 +678,25 @@
                     came_from.set(neighbor, current);
                     g_score.set(neighbor, tentative_g_score);
                     openset.add(neighbor, tentative_g_score + heuristic(neighbor, end));
-                    if (precision <= 100) {
+                    if (precision <= 1) {
                         d_score.set(neighbor, dist(end,neighbor));
                     }
                 }
             }
         }
 
-        if (precision > 100) {
-            result = reconstruct_path(came_from, end);
-        } else {
-            var _p = precision / (100-precision),
+        if (precision <= 1) {
+            var _p = 1-precision,
                 min_dist, nearest;
             d_score.each(function (point, dist, i) {
-                var temp = dist*_p + g_score.map[i];
+                var temp = dist * precision + g_score.map[i] * _p;
                 if (!isNaN(temp) && (min_dist === undefined || temp < min_dist)) {
                     min_dist = temp;
                     nearest = point;
                 }
             });
             if (nearest !== undefined) {
-                if (min_dist < dist(end,start)*_p) {
+                if (min_dist < dist(end,start) * precision) {
                     result = reconstruct_path(came_from, nearest);
                 }
             }
