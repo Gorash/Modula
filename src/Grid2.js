@@ -49,6 +49,7 @@
         if(typeof args.fill !== 'undefined' && !args.cells){
             this.fill(args.fill);
         }
+        this._cache_isSolid = [];
     }
 
     modula.Grid2 = Grid2;
@@ -305,7 +306,7 @@
         var n = [];
         var minX = this.sizeX-1;
         var minY = this.sizeY-1;
-        if( x < -1 || x > minX || y < -1 || y > minY){
+        if( x < 0 || x > minX || y < 0 || y > minY){
             return [];
         } else {
             if (y>0 && isSolid(x,y-1)>0){
@@ -371,27 +372,27 @@
         var n = [];
         var minX = this.sizeX-1;
         var minY = this.sizeY-1;
-        if( x < -1 || x > minX || y < -1 || y > minY){
+        if( x < 0 || x > minX || y < 0 || y > minY){
             return [];
         } else {
-            if (y>0 && isSolid(x,y-1))
+            if (y>0 && isSolid(x,y-1)>0)
                 n.push({x:x,y:y-1});
-            if (y<minY && isSolid(x,y+1))
+            if (y<minY && isSolid(x,y+1)>0)
                 n.push({x:x,y:y+1});
             if (x>0) {
-                if (isSolid(x-1,y))
+                if (isSolid(x-1,y)>0)
                     n.push({x:x-1,y:y});
-                if (y>0 && isSolid(x-1,y-1) && isSolid(x-1, y) && isSolid(x, y-1))
+                if (y>0 && isSolid(x-1,y-1)>0 && isSolid(x-1, y) && isSolid(x, y-1))
                     n.push({x:x-1,y:y-1});
-                if (y<minY && isSolid(x-1,y+1) && isSolid(x-1, y) && isSolid(x, y+1))
+                if (y<minY && isSolid(x-1,y+1)>0 && isSolid(x-1, y) && isSolid(x, y+1))
                     n.push({x:x-1,y:y+1});
             }
             if (x<minX) {
-                if(isSolid(x+1,y))
+                if(isSolid(x+1,y)>0)
                     n.push({x:x+1,y:y});
-                if (y>0 && isSolid(x+1,y-1) && isSolid(x+1, y) && isSolid(x, y-1))
+                if (y>0 && isSolid(x+1,y-1)>0 && isSolid(x+1, y) && isSolid(x, y-1))
                     n.push({x:x+1,y:y-1});
-                if (y<minY && isSolid(x+1,y+1) && isSolid(x+1, y) && isSolid(x, y+1))
+                if (y<minY && isSolid(x+1,y+1)>0 && isSolid(x+1, y) && isSolid(x, y+1))
                     n.push({x:x+1,y:y+1});
             }
             return n;
@@ -596,6 +597,9 @@
     //            empty array if no path is possible to reach the end point.
     //            By default: 100
     //
+    //   keepIsSolidCache: boolean -> if true then the cache of isSolid is
+    //            conserved
+    //
 
     proto.path = function path( startX, startY, endX, endY, opts, iterator){
         var self = this;
@@ -609,44 +613,33 @@
 
         var start = {x:startX, y:startY};
         var end   = {x:endX,   y:endY};
-        var _dist = opts.dist || this.dist;
-        var dist = function(start,end){
-                return _dist.call(self, start.x,start.y, end.x,end.y);
-            };
-        var _heuristic = opts.heuristic || this.dist;
-        var heuristic = function(start, end){
-                return _heuristic.call(self,start.x, start.y, end.x, end.y);
-            };
+        var dist = opts.dist || this.dist;
+        var heuristic = opts.heuristic || dist;
 
-        var precision = typeof opts.precision === "undefined" ? 2 : opts.precision;
+        var precision = opts.precision === undefined ? 2 : opts.precision;
 
-        this._cache_isSolid = []; // use cache to improve performance
+        // use cache to improve performance
+        this._cache_isSolid = opts.keepIsSolidCache ? this._cache_isSolid : [];
 
-        var is_solid = opts.isSolid
-                    ? function(x,y) {
-                        var index = y*self.sizeX+x;
-                        return self._cache_isSolid[index] !== undefined
-                            ? self._cache_isSolid[index]
-                            : self._cache_isSolid[index] = opts.isSolid.call(self,x,y);
-                        }
-                    : function(x,y) {
-                        var index = y*self.sizeX+x;
-                        return self._cache_isSolid[index] !== undefined
-                            ? self._cache_isSolid[index]
-                            : self._cache_isSolid[index] = self.isSolid(x,y);
-                        };
+        var _isSolid = opts.isSolid || self.isSolid;
+        var isSolid = function(x,y) {
+            var index = y*self.sizeX+x;
+            return self._cache_isSolid[index] !== undefined
+                ? self._cache_isSolid[index]
+                : self._cache_isSolid[index] = _isSolid.call(self,x,y);
+        };
 
         var get_neighbors = opts.neighbors
-                    ? function(x,y){ return opts.neighbors.call(self,x,y,is_solid); }
+                    ? opts.neighbors
                     : ( opts.nodiags
-                        ? function(x,y){ return self.neighborsNoDiags(x,y,is_solid);}
+                        ? this.neighborsNoDiags
                         : ( opts.noCrossCorner
-                            ? function(x,y){ return self.neighborsNoCrossCorner(x,y,is_solid);}
-                            : function(x,y){ return self.neighbors(x,y,is_solid); }));
+                            ? this.neighborsNoCrossCorner
+                            : this.neighbors ) );
         
         var closedset = new PointSet(this);
         var openset   = new PointHeap(this);
-            openset.add({x:startX, y:startY},0 + heuristic(start,end));
+            openset.add({x:startX, y:startY},0 + heuristic.call(this, start.x, start.y, end.x, end.y));
         var came_from = new PointMap(this);
         var d_score = new PointMap(this);
         var g_score   = new PointMap(this);
@@ -664,7 +657,7 @@
 
             closedset.add(current);
 
-            var neighbors = get_neighbors(current.x, current.y);
+            var neighbors = get_neighbors.call(self, current.x, current.y, isSolid);
             for(var i = 0, len = neighbors.length; i < len; i++){
                 var neighbor = neighbors[i];
                 
@@ -672,14 +665,15 @@
                     continue;
                 }
 
-                var tentative_g_score = g_score.get(current) + dist(current,neighbor);
+                var tentative_g_score = g_score.get(current) +
+                        dist.call(self, current.x, current.y,neighbor.x, neighbor.y);
 
                 if( !openset.contains(neighbor) || tentative_g_score < g_score.get(neighbor) ){
                     came_from.set(neighbor, current);
                     g_score.set(neighbor, tentative_g_score);
-                    openset.add(neighbor, tentative_g_score + heuristic(neighbor, end));
+                    openset.add(neighbor, tentative_g_score + heuristic.call(self, end.x, end.y, neighbor.x, neighbor.y));
                     if (precision <= 1) {
-                        d_score.set(neighbor, dist(end,neighbor));
+                        d_score.set(neighbor, heuristic.call(self, end.x, end.y, neighbor.x, neighbor.y));
                     }
                 }
             }
@@ -696,7 +690,7 @@
                 }
             });
             if (nearest !== undefined) {
-                if (min_dist < dist(end,start) * precision) {
+                if (min_dist < dist.call(self, end.x, end.y, start.x, start.y) * precision) {
                     result = reconstruct_path(came_from, nearest);
                 }
             }
