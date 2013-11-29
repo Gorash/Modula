@@ -49,32 +49,46 @@
         if(typeof args.fill !== 'undefined' && !args.cells){
             this.fill(args.fill);
         }
-        this._cache_isSolid = [];
+        this._cacheCells = [];
+        this._cacheIndexCell = [];
+        this.each(this.setCacheIndexCell);
+
+        this._cacheIsSolid = [];
     }
 
     modula.Grid2 = Grid2;
 
     var proto = Grid2.prototype;
 
+    // Cache the linearized position
+    proto.setCacheIndexCell = function(x,y){
+        var index = this.getIndex(x,y);
+        this._cacheCells[ index ] = {x:x, y:y};
+    };
+    // get the lienarized index position
+    proto.getIndex = function(x,y){
+        return y * this.sizeX + x;
+    };
+
     // returns the cell at grid coordinates x,y.
     // it will happilly return wrong results if x,y are outside the grid
     proto.getCellUnsafe = function(x,y){
-        return this.cells[y*this.sizeX+x];
+        return this.cells[this.getIndex(x,y)];
     };
 
     // returns the cell at grid coordinates x,y or undefined if outside the grid
     proto.getCell = function(x,y){
         if( x >= 0 && y >= 0 && x < this.sizeX && y < this.sizeY){
-            return this.cells[y*this.sizeX+x];
+            return this.cells[this.getIndex(x,y)];
         }else{
             return undefined;
         }
     };
-    
+
     // sets the cell at grid coordinates x,y
     proto.setCell = function(x,y,cell){
         if(x >= 0 && y >= 0 && x < this.sizeX && y < this.sizeY){
-            this.cells[y*this.sizeX+x] = cell;
+            this.cells[this.getIndex(x,y)] = cell;
         }
     };
 
@@ -171,7 +185,7 @@
     proto.each = function(iterator){
         var x = 0, y = 0, i = 0, len = this.sizeX * this.sizeY;
         while(i < len){
-            iterator(x,y,this.cells[i]);
+            iterator.call(this,x,y,this.cells[i]);
             if(++x >= this.sizeX){
                 x = 0;
                 y++;
@@ -410,23 +424,20 @@
     }
     
     PointSet.prototype = {
-        add: function add(point){
-            var h = point.x + point.y * this.sizeX;
-            if( !this.set[h] ){
+        add: function add(index){
+            if( this.set[index] === undefined ){
                 this.size++;
             }
-            this.set[h] = point;
-            return h;
+            this.set[index] = index;
         },
-        remove: function remove(point){
-            var h = point.x + point.y * this.sizeX;
-            if(this.set[h]){
-                this.set[h] = null;
+        remove: function remove(index){
+            if(this.set[index] !== undefined ){
+                this.set[index] = null;
                 this.size--;
             }
         },
-        contains: function contains(point){
-            return !!this.set[point.x + point.y * this.sizeX];
+        contains: function contains(index){
+            return !!this.set[index];
         },
     };
     
@@ -438,18 +449,11 @@
     }
     
     PointMap.prototype = {
-        set: function set(point,value){
-            return this.map[ point.x + point.y * this.sizeX] = value;
+        set: function set(index,value){
+            this.map[index] = value;
         },
-        get: function get(point){
-            return this.map[ point.x + point.y * this.sizeX];
-        },
-        each: function each(iterator) {
-            for(var i = 0, len = this.map.length; i < len; i++){
-                if (this.map[i] !== undefined) {
-                    iterator.call(this, {x:i%this.sizeX, y:Math.floor(i/this.sizeX)}, this.map[i], i);
-                }
-            }
+        get: function get(index){
+            return this.map[index];
         }
     };
 
@@ -459,14 +463,14 @@
     }
     
     PointHeap.prototype = {
-        add: function add(point,dist){
-            if(!this.set.contains(point)){
-                this.set.add(point);
-                this.content.push({dist:dist, point:point});
+        add: function add(index,dist){
+            if(!this.set.contains(index)){
+                this.set.add(index);
+                this.content.push({dist:dist, index:index});
                 this._bubbleUp(this.content.length - 1);
             }else{
-                this.remove(point);
-                this.content.push({dist:dist, point:point});
+                this.remove(index);
+                this.content.push({dist:dist, index:index});
                 this._bubbleUp(this.content.length - 1);
             }
         },
@@ -477,19 +481,19 @@
                 this.content[0] = end;
                 this._sinkDown(0);
             }
-            this.set.remove(result.point);
+            this.set.remove(result.index);
             return result;
         },
         size: function size(){
             return this.content.length;
         },
-        contains: function contains(point){
-            return this.set.contains(point);
+        contains: function contains(index){
+            return this.set.contains(index);
         },
-        remove: function(point){
+        remove: function(index){
             var len = this.content.length;
             for (var i = 0; i < len; i++){
-                if(this.content[i].point.x !== point.x || this.content[i].point.y !== point.y){
+                if(this.content[i].index !== index){
                     continue;
                 }
                 var end = this.content.pop();
@@ -573,7 +577,7 @@
     //         computes the A* heuristic. by default the grid's dist method is used.
     //         if the heuristic is not always smaller or equal than dist(), an
     //         optimal path is not guaranteed.
-    //         
+    //
     //   neighbors : a function(x,y) that returns the list [{x,y},..] of 
     //               neighboring cells from cell (x,y) and is used to determine the
     //               allowed moves from one cell to the other in the path. 
@@ -585,9 +589,6 @@
     //            should be excluded from the path. By default, the grid's isSolid
     //            method is used.
     //
-    //   softCorner: a function(x,y) -> bool that returns true when the path can
-    //            pass through the corner of the cell (x,y). By default, is isSolid.
-    //
     //   noCrossCorner: if true or softCorner is setted, use softCorner method
     //
     //   precision: an int to defined the precision of the path end point.
@@ -596,6 +597,12 @@
     //            If the precision is greater than 100, path method return an
     //            empty array if no path is possible to reach the end point.
     //            By default: 100
+    //
+    //   distCrowFlies: a custom distance function(x1,y1,x2,y2) -> float that computes 
+    //         the distance between the begin end end of the curent path. This function
+    //         is executed as a grid method and is used to compute the length of the
+    //         path for the precision evaluation. If none is given the grid's
+    //         distEuclidian method is used.
     //
     //   keepIsSolidCache: boolean -> if true then the cache of isSolid is
     //            conserved
@@ -611,22 +618,24 @@
         }
         var result = [];
 
-        var start = {x:startX, y:startY};
-        var end   = {x:endX,   y:endY};
+        var start = {x: startX, y:startY};
+        var startIndex = startX + startY * self.sizeX;
+        var end = {x: endX, y:endY};
+        var endIndex = endX + endY * self.sizeX;
         var dist = opts.dist || this.dist;
         var heuristic = opts.heuristic || dist;
 
         var precision = opts.precision === undefined ? 2 : opts.precision;
 
         // use cache to improve performance
-        this._cache_isSolid = opts.keepIsSolidCache ? this._cache_isSolid : [];
+        this._cacheIsSolid = opts.keepIsSolidCache ? this._cacheIsSolid : [];
 
         var _isSolid = opts.isSolid || self.isSolid;
         var isSolid = function(x,y) {
-            var index = y*self.sizeX+x;
-            return self._cache_isSolid[index] !== undefined
-                ? self._cache_isSolid[index]
-                : self._cache_isSolid[index] = _isSolid.call(self,x,y);
+            var index = self.getIndex(x,y);
+            return self._cacheIsSolid[index] !== undefined
+                ? self._cacheIsSolid[index]
+                : self._cacheIsSolid[index] = _isSolid.call(self,x,y);
         };
 
         var get_neighbors = opts.neighbors
@@ -636,44 +645,51 @@
                         : ( opts.noCrossCorner
                             ? this.neighborsNoCrossCorner
                             : this.neighbors ) );
+
+        var distCrowFlies = opts.distCrowFlies ? opts.distCrowFlies : self.distEuclidian;
         
         var closedset = new PointSet(this);
         var openset   = new PointHeap(this);
-            openset.add({x:startX, y:startY},0 + heuristic.call(this, start.x, start.y, end.x, end.y));
+            openset.add(startIndex,0 + heuristic.call(this, start.x, start.y, end.x, end.y));
         var came_from = new PointMap(this);
         var d_score = new PointMap(this);
         var g_score   = new PointMap(this);
-            g_score.set(start,0);
+            g_score.set(startIndex,0);
+        var path = [];
 
         while( openset.size() > 0 ){
-            var current = openset.popClosest().point;
+            var currentIndex = openset.popClosest().index;
+            var current = this._cacheCells[currentIndex];
 
-            if( current.x === endX && current.y === endY){
+            if( currentIndex === endIndex){
                 if (precision > 1) {
-                    result = reconstruct_path(came_from, end);
+                    result = reconstruct_path(came_from, endIndex);
                 }
                 break;
             }
 
-            closedset.add(current);
+            closedset.add(currentIndex);
 
             var neighbors = get_neighbors.call(self, current.x, current.y, isSolid);
             for(var i = 0, len = neighbors.length; i < len; i++){
                 var neighbor = neighbors[i];
-                
-                if(closedset.contains(neighbor)) {
+                var neighborIndex = neighbor.y * self.sizeX + neighbor.x;
+
+                if(closedset.contains(neighborIndex)) {
                     continue;
                 }
 
-                var tentative_g_score = g_score.get(current) +
-                        dist.call(self, current.x, current.y,neighbor.x, neighbor.y);
+                var tentative_g_score = g_score.get(currentIndex) +
+                        dist.call(self,
+                            current.x, current.y,
+                            neighbor.x, neighbor.y);
 
-                if( !openset.contains(neighbor) || tentative_g_score < g_score.get(neighbor) ){
-                    came_from.set(neighbor, current);
-                    g_score.set(neighbor, tentative_g_score);
-                    openset.add(neighbor, tentative_g_score + heuristic.call(self, end.x, end.y, neighbor.x, neighbor.y));
+                if( !openset.contains(neighborIndex) || tentative_g_score < g_score.get(neighborIndex) ){
+                    came_from.set(neighborIndex, currentIndex);
+                    g_score.set(neighborIndex, tentative_g_score);
+                    openset.add(neighborIndex, tentative_g_score + heuristic.call(self, end.x, end.y, neighbor.x, neighbor.y));
                     if (precision <= 1) {
-                        d_score.set(neighbor, heuristic.call(self, end.x, end.y, neighbor.x, neighbor.y));
+                        d_score.set(neighborIndex, distCrowFlies.call(self, end.x, end.y, neighbor.x, neighbor.y));
                     }
                 }
             }
@@ -681,29 +697,32 @@
 
         if (precision <= 1) {
             var _p = 1-precision,
-                min_dist, nearest;
-            d_score.each(function (point, dist, i) {
-                var temp = dist * precision + g_score.map[i] * _p;
-                if (!isNaN(temp) && (min_dist === undefined || temp < min_dist)) {
+                min_dist, nearest,
+                temp;
+
+            for(var i = 0, len = d_score.map.length; i < len; i++){
+                temp = d_score.map[i] * precision + g_score.map[i] * _p;
+                if (d_score.map[i] !== undefined && g_score.map[i] !== undefined && (min_dist === undefined || temp < min_dist)) {
                     min_dist = temp;
-                    nearest = point;
+                    nearest = i;
                 }
-            });
+            }
+
             if (nearest !== undefined) {
-                if (min_dist < dist.call(self, end.x, end.y, start.x, start.y) * precision) {
+                if (min_dist < distCrowFlies.call(self, end.x, end.y, start.x, start.y) * precision) {
                     result = reconstruct_path(came_from, nearest);
                 }
             }
         }
-
-        if(iterator){
-            for(var i = 0, len = result.length; i < len; i++){
-                var r = result[i];
-                    r.cell = this.getCellUnsafe(r.x,r.y);
-                iterator.call(this,r.x,r.y,r.cell,i,len);
+        for(var i = 0, len = result.length; i < len; i++){
+            var index = result[i];
+            var r = this._cacheCells[index];
+            path.push(r);
+            if(iterator){
+                iterator.call(this, r.x, r.y, this.cells[index], i, len);
             }
         }
-        return result;
+        return path;
     };
 
     // returns the pixel coordinates {x,y} of the first intersection
