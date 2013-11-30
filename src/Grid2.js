@@ -437,7 +437,7 @@
             }
         },
         contains: function contains(index){
-            return !!this.set[index];
+            return this.set[index] !== undefined;
         },
     };
     
@@ -556,7 +556,7 @@
     function reconstruct_path(came_from, end){
         var path = [];
         var current = end;
-        while(current){
+        while(current !== undefined){
             path.push(current);
             current = came_from.get(current);
         };
@@ -661,7 +661,7 @@
             var currentIndex = openset.popClosest().index;
             var current = this._cacheCells[currentIndex];
 
-            if( currentIndex === endIndex){
+            if( currentIndex === endIndex ){
                 if (precision > 1) {
                     result = reconstruct_path(came_from, endIndex);
                 }
@@ -673,7 +673,7 @@
             var neighbors = get_neighbors.call(self, current.x, current.y, isSolid);
             for(var i = 0, len = neighbors.length; i < len; i++){
                 var neighbor = neighbors[i];
-                var neighborIndex = neighbor.y * self.sizeX + neighbor.x;
+                var neighborIndex = self.getIndex(neighbor.x,neighbor.y);
 
                 if(closedset.contains(neighborIndex)) {
                     continue;
@@ -714,6 +714,7 @@
                 }
             }
         }
+        
         for(var i = 0, len = result.length; i < len; i++){
             var index = result[i];
             var r = this._cacheCells[index];
